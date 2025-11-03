@@ -1,4 +1,5 @@
 import { Song } from '../types';
+import { API_BASE } from '../constants';
 
 /**
  * A service to interact with the browser's Media Session API.
@@ -14,17 +15,22 @@ class MediaSessionService {
    */
   public updateMetadata(track: Song): void {
     if ('mediaSession' in navigator) {
+      // Use backend proxy for Spotify CDN images to avoid CORS issues
+      const base = API_BASE || '';
+      const artSrc = track.albumArt
+        ? `${base}/api/proxy/image?src=${encodeURIComponent(track.albumArt)}`
+        : track.albumArt;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
         artist: track.artist,
         album: track.album,
         artwork: [
-          { src: track.albumArt, sizes: '96x96', type: 'image/png' },
-          { src: track.albumArt, sizes: '128x128', type: 'image/png' },
-          { src: track.albumArt, sizes: '192x192', type: 'image/png' },
-          { src: track.albumArt, sizes: '256x256', type: 'image/png' },
-          { src: track.albumArt, sizes: '384x384', type: 'image/png' },
-          { src: track.albumArt, sizes: '512x512', type: 'image/png' },
+          { src: artSrc, sizes: '96x96' },
+          { src: artSrc, sizes: '128x128' },
+          { src: artSrc, sizes: '192x192' },
+          { src: artSrc, sizes: '256x256' },
+          { src: artSrc, sizes: '384x384' },
+          { src: artSrc, sizes: '512x512' },
         ],
       });
     }

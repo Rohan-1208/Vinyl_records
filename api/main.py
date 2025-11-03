@@ -322,6 +322,36 @@ async def spotify_callback(request: Request):
     return r
 
 
+@app.get("/api/proxy/image")
+async def proxy_image(src: str):
+    """Proxy Spotify CDN album art to avoid browser CORS restrictions.
+    - Only allows images from i.scdn.co
+    - Returns bytes with original content-type and cache headers
+    """
+    try:
+        u = urlparse(src)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image URL")
+    if u.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Invalid image scheme")
+    if (u.hostname or "").lower() != "i.scdn.co":
+        raise HTTPException(status_code=400, detail="Image host not allowed")
+
+    # Fetch image from Spotify CDN
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(src)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Failed to fetch image")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail="Upstream image error")
+
+    ct = resp.headers.get("content-type", "image/jpeg")
+    r = Response(content=resp.content, media_type=ct)
+    # Cache for one day; CDN images are immutable by hash
+    r.headers["Cache-Control"] = "public, max-age=86400, immutable"
+    return r
+
 # Persistent HTTP client for Spotify API to reduce handshake latency
 SPOTIFY_HTTP: Optional[httpx.AsyncClient] = None
 
