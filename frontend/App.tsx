@@ -1180,7 +1180,10 @@ const App: React.FC = () => {
 <GrainOverlay />
       </div>
 
-      <main className={`relative z-10 w-full h-full transition-all duration-500 ${screensaverActive ? 'opacity-0' : 'opacity-100'}`}>
+      <main
+        className={`relative z-10 w-full h-full transition-all duration-500 ${screensaverActive ? 'opacity-0' : 'opacity-100'}`}
+        style={{ zoom: 0.67 }}
+      >
         <TopBar
             screensaverActive={screensaverActive}
             onToggleScreensaver={() => setScreensaverActive(!screensaverActive)}
