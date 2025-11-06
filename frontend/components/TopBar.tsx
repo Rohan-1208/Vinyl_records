@@ -15,20 +15,28 @@ const TopBar: React.FC<TopBarProps> = ({ screensaverActive, onToggleScreensaver,
   const handleConnectSpotify = () => {
     let base = API_BASE || '';
     if (!base) {
-      // Default to local backend in dev when env var is not set
-      base = 'http://localhost:8000';
+      // Default to deployed backend when env var is not set
+      base = 'https://vinyl-records.onrender.com';
     }
-    const url = `${base}/auth/spotify/login?ngrok-skip-browser-warning=true`;
-    window.location.assign(url);
+    const url = `${base}/auth/spotify/login?ngrok-skip-browser-warning=true&popup=true`;
+    const popup = window.open(
+      url,
+      'spotifyAuth',
+      'width=500,height=700,noopener,noreferrer'
+    );
+    if (!popup) {
+      // Fallback if popups are blocked
+      window.location.assign(url);
+    }
   };
 
   const handleLogout = async () => {
     try {
-      const base = API_BASE || 'http://localhost:8000';
+      const base = API_BASE || 'https://vinyl-records.onrender.com';
       const url = `${base}/api/auth/logout`;
       await fetch(url, { method: 'POST', credentials: 'include', headers: { 'ngrok-skip-browser-warning': 'true' } });
-      // Reload to reset app state and re-check auth
-      window.location.reload();
+      // Notify app to re-check auth without a full reload
+      try { window.postMessage({ type: 'spotify-auth-logout' }, '*'); } catch {}
     } catch (e) {
       console.error('Logout failed', e);
     }
@@ -36,11 +44,18 @@ const TopBar: React.FC<TopBarProps> = ({ screensaverActive, onToggleScreensaver,
 
   const handleSwitchAccount = async () => {
     try {
-      const base = API_BASE || 'http://localhost:8000';
+      const base = API_BASE || 'https://vinyl-records.onrender.com';
       await fetch(`${base}/api/auth/logout`, { method: 'POST', credentials: 'include', headers: { 'ngrok-skip-browser-warning': 'true' } });
       // Redirect to login with show_dialog=true to force account chooser
-      const url = `${base}/auth/spotify/login?show_dialog=true&ngrok-skip-browser-warning=true`;
-      window.location.assign(url);
+      const url = `${base}/auth/spotify/login?show_dialog=true&ngrok-skip-browser-warning=true&popup=true`;
+      const popup = window.open(
+        url,
+        'spotifyAuth',
+        'width=500,height=700,noopener,noreferrer'
+      );
+      if (!popup) {
+        window.location.assign(url);
+      }
     } catch (e) {
       console.error('Switch account failed', e);
     }

@@ -14,12 +14,12 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
         proxy: {
           '/api': {
-            target: 'http://localhost:8000',
+            target: 'https://vinyl-records.onrender.com',
             changeOrigin: true,
             secure: false,
           },
           '/auth': {
-            target: 'http://localhost:8000',
+            target: 'https://vinyl-records.onrender.com',
             changeOrigin: true,
             secure: false,
           }

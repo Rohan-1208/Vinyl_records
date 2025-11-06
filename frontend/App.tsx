@@ -189,7 +189,7 @@ const App: React.FC = () => {
     const uri = track?.spotifyUri || null;
     if (!uri) return;
     let base = API_BASE || '';
-    if (!base) base = 'http://localhost:8000';
+    if (!base) base = 'https://vinyl-records.onrender.com';
     const id = uri.split(':').pop() || '';
     if (!id) return;
     (async () => {
@@ -510,6 +510,38 @@ const App: React.FC = () => {
 
     initSpotify();
   }, []);
+
+  // Listen for popup-based auth success and re-check status without manual refresh
+  useEffect(() => {
+    const recheckAuth = async () => {
+      try {
+        const base = API_BASE || '';
+        const res = await fetch(`${base}/api/auth/status`, { credentials: 'include', headers: { 'ngrok-skip-browser-warning': 'true' } });
+        const json = await res.json();
+        const authed = !!json?.authenticated;
+        setIsAuthenticated(authed);
+        if (authed) {
+          // Refresh data when auth becomes true
+          try { await fetchSongs(); } catch {}
+          try { await fetchPlaylists(); } catch {}
+        } else {
+          // Clear Spotify state on logout
+          try { localStorage.removeItem('selectedDeviceId'); } catch {}
+          setSelectedDeviceId(null);
+          setSpotifyReady(false);
+          setSpotifyDeviceId(null);
+        }
+      } catch {}
+    };
+    const onMessage = (ev: MessageEvent) => {
+      const data: any = ev?.data || {};
+      if (data && (data.type === 'spotify-auth-success' || data.type === 'spotify-auth-logout')) {
+        recheckAuth();
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [fetchSongs, fetchPlaylists]);
 
   // Refresh songs and playlists when authentication state changes to true
   useEffect(() => {

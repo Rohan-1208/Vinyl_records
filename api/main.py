@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, HTMLResponse
 from dotenv import load_dotenv
 import httpx
 try:
@@ -30,7 +30,7 @@ SPOTIFY_API_BASE = "https://api.spotify.com/v1"
 app = FastAPI(title="Vinyl Records API")
 
 # CORS: allow frontend origin from env for cross-origin cookie flows
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://vinyl-records-six.vercel.app")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_URL],
@@ -45,7 +45,7 @@ def _cookie_settings(request: Request) -> Dict[str, Any]:
     - If frontend and backend are cross-site (different host), use `samesite='none'`.
     - Otherwise use `samesite='lax'` for same-site flows (dev localhost).
     """
-    frontend = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    frontend = os.getenv("FRONTEND_URL", "https://vinyl-records-six.vercel.app")
     f = urlparse(frontend)
     is_https = f.scheme == "https"
     backend_host = request.url.hostname
@@ -133,7 +133,7 @@ async def _get_or_create_session_id(request: Request, response: Response) -> str
 def _get_spotify_env() -> Tuple[Optional[str], Optional[str], str]:
     client_id = os.getenv("SPOTIFY_CLIENT_ID")
     client_secret = os.getenv("SPOTIFY_CLIENT_SECRET")
-    redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8000/auth/spotify/callback")
+    redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI", "https://vinyl-records.onrender.com/auth/spotify/callback")
     return client_id, client_secret, redirect_uri
 
 
@@ -249,6 +249,15 @@ async def spotify_login(request: Request):
       "state": state,
       "show_dialog": show_dialog,
   }
+  # Track whether this auth flow was initiated from a popup window so that
+  # the callback can return a small HTML page that posts a success message
+  # to the opener and closes itself.
+  try:
+      session = session or {}
+      session["auth_popup"] = (qs.get("popup") == "true")
+      await _set_session(sid, session)
+  except Exception:
+      pass
   url = f"https://accounts.spotify.com/authorize?{urlencode(params)}"
 
   r = RedirectResponse(url)
@@ -313,7 +322,48 @@ async def spotify_callback(request: Request):
         }
         await _set_session(sid, session)
 
-    # Redirect back to frontend origin (supports ngrok/localhost)
+    # If this callback was initiated from a popup window, return a small HTML page
+    # that notifies the opener and closes the popup. This avoids needing a manual
+    # refresh on the main app and works reliably across browsers.
+    # Detect if login started from a popup by reading the flag we stored
+    # on the session during the /auth/spotify/login step.
+    if session and session.get("auth_popup"):
+        html = """
+        <!doctype html>
+        <html>
+          <head>
+            <meta charset=\"utf-8\" />
+            <title>Spotify Auth Complete</title>
+          </head>
+          <body style=\"background:#0b1120;color:#fff;font:14px system-ui\">\n
+            <p>Authentication successful. You can close this window.</p>
+            <script>
+            try {
+              if (window.opener) {
+                window.opener.postMessage({ type: 'spotify-auth-success' }, '*');
+              }
+            } catch (e) {}
+            // Close shortly to allow message dispatch
+            setTimeout(() => { try { window.close(); } catch (e) {} }, 20);
+            </script>
+          </body>
+        </html>
+        """
+        r = HTMLResponse(html)
+        # propagate Set-Cookie for session_id
+        for c in response.raw_headers:
+            if c[0].lower() == b"set-cookie":
+                r.raw_headers.append(c)
+        # Clear popup flag from session to avoid affecting future flows
+        try:
+            if session:
+                session["auth_popup"] = False
+                await _set_session(sid, session)
+        except Exception:
+            pass
+        return r
+
+    # Otherwise, redirect back to frontend origin (supports ngrok/localhost)
     redirect_to = FRONTEND_URL or "/"
     r = RedirectResponse(redirect_to)
     for c in response.raw_headers:
