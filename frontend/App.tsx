@@ -7,7 +7,7 @@ import SongTitle from './components/SongTitle';
 import ProgressBar from './components/ProgressBar';
 import { Song, SpotifyPlaylist, BackgroundMode, AudioFeatures, VinylTheme } from './types';
 import { mediaSessionService } from './services/mediaSessionService';
-import { API_BASE } from './constants';
+import { API_BASE, proxiedImage } from './constants';
 import StarryBackground from './components/StarryBackground';
 import DynamicBackground from './components/DynamicBackground';
 import GrainOverlay from './components/GrainOverlay';
@@ -160,18 +160,19 @@ const App: React.FC = () => {
   const artUrl = useMemo(() => {
     return (nowPlaying?.track?.albumArt) || currentTrack?.albumArt || '';
   }, [nowPlaying?.track?.albumArt, currentTrack?.albumArt]);
+  const artSrc = useMemo(() => proxiedImage(artUrl), [artUrl]);
 
   const lastAppliedArtRef = useRef<string>('');
 
   useEffect(() => {
     if (backgroundMode !== 'album' && backgroundMode !== 'blur') return;
-    if (!artUrl) return;
-    if (artUrl === lastAppliedArtRef.current) return;
+    if (!artSrc) return;
+    if (artSrc === lastAppliedArtRef.current) return;
     setIsBg1Active(prev => {
-      if (prev) setBg2Url(artUrl); else setBg1Url(artUrl);
+      if (prev) setBg2Url(artSrc); else setBg1Url(artSrc);
       return !prev;
     });
-    lastAppliedArtRef.current = artUrl;
+    lastAppliedArtRef.current = artSrc;
     // Update the displayed track only when the background changes
     setDisplayTrack((nowPlaying?.track ?? currentTrack) || null);
   }, [backgroundMode, artUrl]);
